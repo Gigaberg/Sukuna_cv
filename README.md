@@ -1,62 +1,112 @@
 # 🩸 Malevolent Shrine – Gesture Controlled Domain Expansion
 
-A real-time 3D recreation of Sukuna’s **“Malevolent Shrine”** built using Three.js and MediaPipe hand tracking.
+A real-time 3D recreation of Sukuna’s **Malevolent Shrine** built with Three.js + MediaPipe hand tracking.
 
-Activate the domain through a live hand gesture and watch the shrine emerge with cinematic lighting, bloom effects, camera motion, and background audio — all running directly in the browser.
-
----
-
-## 🎬 Inspiration
-
-This project was inspired by the SAT0RU WebGL domain expansion project.  
-While the original focused on Gojo’s techniques, this version reimagines the concept by recreating Sukuna’s “Malevolent Shrine” with custom gesture logic, cinematic animation, and enhanced visual effects.
+Trigger techniques with live hand gestures and watch cinematic lighting, bloom, model animation, particles, and music unfold in the browser.
 
 ---
 
 ## ✨ Features
 
-- 🎥 Real-time webcam hand tracking (MediaPipe)
-- ✋ Custom gesture activation (middle-finger domain trigger)
-- 🔵 1.2s cursed energy charging animation
-- 🏯 3D GLTF shrine model rendering
-- 🌫 Cinematic fog and volumetric lighting
-- ✨ Bloom post-processing effects
-- 🎵 Sukuna background music activation
-- 📸 Smooth camera lerp & shrine float animation
-- ⚡ Dynamic light flicker and particle effects
+- 🎥 Real-time webcam hand tracking (MediaPipe Hands)
+- ✋ Multi-gesture technique detection (Cleave, Dismantle, Shrine)
+- 🔴 Domain expansion sequence with flash + overlay effects
+- 🏯 GLTF shrine model loading and scene integration
+- 🌫 Fog, layered lighting, red sky, and blood-ground atmosphere
+- ✨ Post-processing with Unreal Bloom
+- 🎵 Looping Sukuna background audio
+- 📸 Smooth camera transition + continuous scene animation
+
+---
+
+## 🎮 Gestures & Controls
+
+| Gesture | Detected Technique | Notes |
+|---|---|---|
+| Thumb + index pinch (`distance < 0.04`) | **Cleave** | Fast slash-like particle pattern |
+| Index up + middle down | **Dismantle** | Distinct slicing pattern |
+| Index + middle + ring + pinky up | **Domain Expansion: Malevolent Shrine** | Triggers shrine activation sequence |
+
+> Gesture logic is implemented in `index.html` inside `hands.onResults(...)`.
 
 ---
 
 ## 🛠 Tech Stack
 
-- **Three.js** – WebGL rendering & scene management
-- **MediaPipe Hands** – Real-time gesture detection
-- **GLTF Loader** – 3D shrine model
-- **EffectComposer + UnrealBloomPass** – Post-processing effects
-- **Web Audio API (Three.Audio)** – Background music
+- **Three.js** – scene/rendering/camera/lights/audio
+- **MediaPipe Hands** – real-time hand landmarks
+- **GLTFLoader** – shrine model loading (`./models/shrine.glb`)
+- **EffectComposer + UnrealBloomPass** – bloom post-processing
+- **Three.Audio** – background music (`./assets/sukuna.mp3`)
 
 ---
 
-## 🚀 How It Works
+## ✅ Prerequisites
 
-1. The webcam feed is captured using MediaPipe.
-2. Hand landmarks are analyzed per frame.
-3. When the correct gesture (middle finger up) is detected:
-   - A cursed energy charge begins.
-   - After 1.2 seconds, the domain activates.
-4. The shrine appears with cinematic lighting and audio.
+- A modern browser with webcam support (Chrome/Edge recommended)
+- Camera permission enabled
+- Run from `localhost` (or HTTPS) — not plain `file://`
+- Internet access (CDN imports are used for Three.js and MediaPipe)
 
 ---
 
-## 🖥 Running Locally
+## 🚀 Run Locally
 
-Because the project uses ES modules and webcam access, it must run on a local server.
+Because this project uses ES modules and webcam APIs, run it on a local server.
 
 ### Option 1: VS Code Live Server
-1. Install the Live Server extension.
-2. Right-click `index.html`.
-3. Click **“Open with Live Server”**.
 
-### Option 2: Simple Python Server
+1. Install the **Live Server** extension.
+2. Right-click `index.html`.
+3. Choose **Open with Live Server**.
+
+### Option 2: Python HTTP server
+
 ```bash
 python -m http.server 8000
+```
+
+Then open:
+
+- `http://localhost:8000`
+
+When prompted, allow camera access.
+
+---
+
+## 📁 Project Structure
+
+```text
+.
+├── index.html              # Main app (scene, gestures, effects, animation)
+├── models/
+│   └── shrine.glb          # Required shrine model
+├── assets/
+│   └── sukuna.mp3          # Background audio
+└── README.md
+```
+
+---
+
+## 🧪 Troubleshooting
+
+- **Camera feed not showing**
+  - Ensure browser camera permissions are enabled.
+  - Verify you are running from `localhost`/HTTPS, not opening `index.html` directly.
+
+- **No audio playback**
+  - Some browsers block autoplay audio until user interaction.
+  - Click/tap once on the page to allow audio.
+
+- **Shrine not visible**
+  - Confirm `models/shrine.glb` exists at the expected path.
+  - Check browser console for model loading errors.
+
+- **Blank/partial scene**
+  - Confirm network access is available for CDN script/module imports.
+
+---
+
+## 🎬 Inspiration & Credit
+
+Inspired by the SAT0RU WebGL domain expansion concept, reimagined here with Sukuna’s **Malevolent Shrine** aesthetic and custom gesture flow.
