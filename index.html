@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>JJK: Sukuna</title>
+    <style>
+body {
+    margin: 0;
+    overflow: hidden;
+    background: radial-gradient(circle at center, #1a0000 0%, #000 75%);
+    font-family: 'Courier New', sans-serif;
+}
+    
+        #ui {
+            position: absolute;
+            top: 10%;
+            width: 100%;
+            text-align: center;
+            color: #fff;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        h1 { 
+            font-size: 3rem; margin: 0; letter-spacing: 10px; 
+            font-weight: 900; 
+            text-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+            background: linear-gradient(to bottom, #fff, #888);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        #technique-name { 
+            font-size: 1.2rem; color: #00ffff; margin-top: 15px; 
+            font-weight: bold; letter-spacing: 4px;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+
+        /* Large Centered Camera Hub - Taller for Reel Context */
+        #video-container {
+            position: absolute;
+            bottom: 2%;
+            left: 18%;
+            transform: translateX(-50%) scaleX(-1);
+            width: 85vw;
+            max-width: 450px;
+            height: 42vh; 
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            z-index: 20;
+            background-color: #000; 
+            border-radius: 25px;
+            overflow: hidden;
+            box-shadow: 0 0 40px rgba(0,0,0,0.9);
+        }
+
+        video { width: 100%; height: 100%; object-fit: cover; opacity: 0.8; }
+        #output_canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+        #grain {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 5;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E");
+        }
+        #domain-overlay {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle, rgba(120,0,0,0.6) 0%, rgba(0,0,0,0.95) 70%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.8s ease;
+    z-index: 8;
+}
+
+#domain-flash {
+    position: fixed;
+    inset: 0;
+    background: white;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 9;
+}
+#vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(circle, rgba(0,0,0,0) 40%, rgba(0,0,0,0.8) 100%);
+    z-index: 7;
+}
+
+
+    </style>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <div id="grain"></div>
+    <div id="vignette"></div>
+    <div id="domain-overlay"></div>
+    <div id="domain-flash"></div>
+
+
+    <div id="ui">
+        <h1>呪術廻戦</h1>
+        <div id="technique-name">CURSED ENERGY</div>
+    </div>
+
+    <div id="video-container">
+        <video class="input_video"></video>
+        <canvas id="output_canvas"></canvas>
+    </div>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+
+    // --- Scene & Rendering ---
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x2b0000, 0.018);
+// === CINEMATIC LIGHTING ===
+
+// Very subtle base light (not flat)
+const ambient = new THREE.AmbientLight(0x220000, 0.6);
+scene.add(ambient);
+
+// Strong white key light from top-front
+const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
+keyLight.position.set(20, 40, 30);
+scene.add(keyLight);
+
+// Deep red rim light from behind
+const rimLight = new THREE.DirectionalLight(0xaa0000, 2.5);
+rimLight.position.set(0, 30, -60);
+scene.add(rimLight);
+
+// Subtle red under-glow
+const underLight = new THREE.PointLight(0x550000, 1.8, 200);
+underLight.position.set(0, -20, 0);
+scene.add(underLight);
+
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 15, 125);
+camera.lookAt(0, -10, 0);
+
+
+
+
+
+
+
+    const loader = new GLTFLoader();
+let shrineModel;
+
+
+loader.load('./models/shrine.glb', (gltf) => {
+    shrineModel = gltf.scene;
+    shrineModel.traverse((child) => {
+    if (child.isMesh) {
+        child.material.roughness = 0.9;
+        child.material.metalness = 0.05;
+    }
+});
+
+
+    // Auto-scale using bounding box
+    const box = new THREE.Box3().setFromObject(shrineModel);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const desiredSize = 70; // how big you want shrine
+    const scale = desiredSize / maxDim;
+
+    shrineModel.scale.setScalar(scale);
+
+    // Recalculate box after scaling
+    box.setFromObject(shrineModel);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+
+    shrineModel.position.sub(center); // center it
+
+    shrineModel.position.y -= 20; // lower to ground
+    // Rotate car to face camera
+shrineModel.rotation.y = Math.PI;
+
+    shrineModel.visible = false;
+    scene.add(shrineModel);
+});
+
+
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+// 🔥 ADD THIS HERE
+    
+
+    const redLight = new THREE.PointLight(0xff0000, 1.8, 300);
+    redLight.position.set(0, 20, 0);
+    scene.add(redLight);
+
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+    composer.addPass(bloomPass);
+
+    const COUNT = 3000;
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(COUNT * 3);
+    const colors = new Float32Array(COUNT * 3);
+    const sizes = new Float32Array(COUNT);
+    
+    const targetPositions = new Float32Array(COUNT * 3);
+    const targetColors = new Float32Array(COUNT * 3);
+    const targetSizes = new Float32Array(COUNT);
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+    const particles = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 0.3, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: true }));
+    scene.add(particles);
+    // Blood ground
+const groundGeometry = new THREE.CircleGeometry(200, 64);
+const groundMaterial = new THREE.MeshStandardMaterial({
+    color: 0x4b0000,
+    roughness: 0.9,
+    metalness: 0.1
+});
+const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -45;
+ground.visible = false;
+scene.add(ground);
+// 🔥 ADD THIS RIGHT HERE
+const skyGeo = new THREE.SphereGeometry(500, 32, 32);
+const skyMat = new THREE.MeshBasicMaterial({
+    color: 0x1a0000,
+    side: THREE.BackSide
+});
+const sky = new THREE.Mesh(skyGeo, skyMat);
+scene.add(sky);
+
+
+    // Technique Functions 
+    function getCleave(i) {
+    const angle = Math.PI / 4;
+    const t = i / COUNT;
+    const length = 100;
+
+    return {
+        x: t * length - length/2,
+        y: (t * length - length/2) * Math.tan(angle) + (Math.random()-0.5)*3,
+        z: (Math.random()-0.5)*8,
+        r: 1,
+        g: 0,
+        b: 0,
+        s: 1.8
+    };
+}
+
+
+    function getDismantle(i) {
+        const slice = i % 6;
+        return {
+            x: slice * 12 - 30 + (Math.random() - 0.5) * 5,
+            y: (Math.random() - 0.5) * 60,
+            z: (Math.random() - 0.5) * 20,
+            r: 0.8,
+            g: 0,
+            b: 0,
+            s: 1.0
+        };
+    }
+
+    // Hand Tracking
+    let currentTech = 'neutral';
+    let shakeIntensity = 0;
+    let domainActive = false;
+    let gestureLocked = false;
+    let shrineBurst = 0;
+    let currentState = "neutral";
+
+
+    const videoElement = document.querySelector('.input_video');
+    const canvasElement = document.getElementById('output_canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    let glowColor = '#00ffff';
+
+    const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+    hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.7 });
+
+    hands.onResults((results) => {
+        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        let detected = 'neutral';
+
+        if (results.multiHandLandmarks) {
+            results.multiHandLandmarks.forEach((lm) => {
+                drawConnectors(canvasCtx, lm, HAND_CONNECTIONS, {color: glowColor, lineWidth: 5});
+                drawLandmarks(canvasCtx, lm, {color: '#fff', lineWidth: 1, radius: 2});
+
+                const isUp = (t, p) => lm[t].y < lm[p].y;
+                const pinch = Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y);
+                
+                if (pinch < 0.04) detected = 'cleave';
+                else if (isUp(8,6) && !isUp(12,10)) detected = 'dismantle';
+              else if (isUp(8,6) && isUp(12,10) && isUp(16,14) && isUp(20,18)) {
+    detected = 'shrine';
+    if (detected !== 'shrine') {
+    gestureLocked = false;
+}
+
+
+    if (!domainActive && !gestureLocked) {
+        domainActive = true;
+        gestureLocked = true;
+        triggerDomainExpansion();
+    }
+}
+
+            });
+        }
+        if (!domainActive) {
+    updateState(detected);
+}
+
+    });
+    function triggerDomainExpansion() {
+         camera.position.lerp(targetCameraPos, 0.05);
+camera.lookAt(0, 10, 0);
+
+        // look slightly downward
+
+
+
+
+        if (shrineModel) shrineModel.visible = true;
+shrineModel.position.y = -30;
+
+        shrineBurst = 0.1;
+    const overlay = document.getElementById("domain-overlay");
+    const flash = document.getElementById("domain-flash");
+    const title = document.getElementById("technique-name");
+    renderer.domElement.style.filter = "contrast(1.4) brightness(0.8)";
+setTimeout(() => {
+    renderer.domElement.style.filter = "none";
+}, 2000);
+
+    // Phase 1: Flash
+    flash.style.opacity = 1;
+    setTimeout(() => flash.style.opacity = 0, 120);
+
+    // Phase 2: Dark aura
+    overlay.style.opacity = 1;
+
+    // Phase 3: Dramatic text
+    title.innerText = "DOMAIN EXPANSION...";
+    title.style.fontSize = "2rem";
+    title.style.letterSpacing = "8px";
+
+    // After delay, activate shrine particles
+    setTimeout(() => {
+        if (currentState !== "shrine") {
+    currentState = "shrine";
+    updateState("shrine");
+}
+
+        ground.visible = true;
+
+
+        title.innerText = "Malevolent Shrine";
+    }, 800);
+
+}
+
+    function updateState(tech) {
+    if(currentTech === tech) return;
+    currentTech = tech;
+
+    const nameEl = document.getElementById('technique-name');
+
+    if(tech === 'cleave') {
+        glowColor = '#ff0000';
+        nameEl.innerText = "Cleave";
+        bloomPass.strength = 2.8;
+        shakeIntensity = 0.8;
+    }
+    else if(tech === 'dismantle') {
+        glowColor = '#aa0000';
+        nameEl.innerText = "Dismantle";
+        bloomPass.strength = 2.3;
+        shakeIntensity = 1.2;
+    }
+else if (tech === 'shrine') {
+
+    if (shrineModel) shrineModel.visible = true;
+
+    if (!shrineMusic.isPlaying) {
+        shrineMusic.play();
+    }
+
+    glowColor = "#8b0000";
+    nameEl.innerText = "Domain Expansion: Malevolent Shrine";
+
+    bloomPass.strength = 0.7;
+    bloomPass.radius = 0.35;
+    bloomPass.threshold = 0.75;
+
+    shakeIntensity = 0.2;
+}
+
+
+else {
+
+    if (shrineModel) shrineModel.visible = false;
+
+    if (shrineMusic.isPlaying) {
+        shrineMusic.stop();
+    }
+
+    glowColor = "#00ffff";
+    nameEl.innerText = "Neutral State";
+
+    bloomPass.strength = 0.2;
+
+    shakeIntensity = 0;
+}
+
+
+    for(let i=0; i<COUNT; i++) {
+        let p;
+
+        if(tech === 'neutral') {
+            p = { x:0, y:0, z:0, r:0, g:0, b:0, s:0 };
+        }
+        else if(tech === 'cleave') {
+            p = getCleave(i);
+        }
+        else if(tech === 'dismantle') {
+            p = getDismantle(i);
+        }
+        else if (tech === 'shrine') {
+    p = { x:0, y:0, z:0, r:0, g:0, b:0, s:0 };
+}
+
+
+
+        targetPositions[i*3] = p.x;
+        targetPositions[i*3+1] = p.y;
+        targetPositions[i*3+2] = p.z;
+
+        targetColors[i*3] = p.r;
+        targetColors[i*3+1] = p.g;
+        targetColors[i*3+2] = p.b;
+
+        targetSizes[i] = p.s;
+    }
+}
+
+    const cameraUtils = new Camera(videoElement, {
+        onFrame: async () => {
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+            await hands.send({image: videoElement});
+        }, width: 640, height: 480
+    });
+    cameraUtils.start();
+
+    // Animation
+    const targetCameraPos = new THREE.Vector3(0, 5, 45);
+
+camera.lookAt(0, 5, 0);
+// === AUDIO SETUP ===
+const listener = new THREE.AudioListener();
+camera.add(listener);
+
+const shrineMusic = new THREE.Audio(listener);
+const audioLoader = new THREE.AudioLoader();
+
+audioLoader.load('./assets/sukuna.mp3', function(buffer) {
+    shrineMusic.setBuffer(buffer);
+    shrineMusic.setLoop(true);
+    shrineMusic.setVolume(0.6);
+});
+
+
+    function animate() {
+      if (domainActive) {
+    camera.position.lerp(targetCameraPos, 0.05);
+    camera.lookAt(0, 10, 0);
+}
+if (domainActive && shrineModel) {
+    shrineModel.rotation.y += 0.0015;
+    shrineModel.position.y = Math.sin(Date.now() * 0.001) * 0.5 - 10;
+}
+        requestAnimationFrame(animate);
+
+        if (shakeIntensity > 0) {
+            renderer.domElement.style.transform = `translate(${(Math.random()-0.5)*shakeIntensity*40}px, ${(Math.random()-0.5)*shakeIntensity*40}px)`;
+        } else {
+            renderer.domElement.style.transform = 'translate(0,0)';
+        }
+
+        const pos = particles.geometry.attributes.position.array;
+        const col = particles.geometry.attributes.color.array;
+        const siz = particles.geometry.attributes.size.array;
+
+        for(let i=0; i<COUNT*3; i++) {
+            pos[i] += (targetPositions[i] - pos[i]) * 0.1;
+            col[i] += (targetColors[i] - col[i]) * 0.1;
+        }
+        for(let i=0; i<COUNT; i++) siz[i] += (targetSizes[i] - siz[i]) * 0.1;
+
+        particles.geometry.attributes.position.needsUpdate = true;
+        particles.geometry.attributes.color.needsUpdate = true;
+        particles.geometry.attributes.size.needsUpdate = true;
+        
+        // UPDATED ROTATION LOGIC: Locking rotation for Shrine
+        if(currentTech === 'cleave') {
+        particles.rotation.z -= 0.4;
+        }
+        else if(currentTech === 'dismantle') {
+        particles.rotation.x += 0.3;
+        particles.rotation.y += 0.3;
+        }
+        else if(currentTech === 'shrine') {
+    particles.rotation.y += 0.003;
+}
+        else {
+        particles.rotation.y += 0.005;
+        }
+if(currentTech === "shrine") {
+    const scalePulse = 1 + Math.sin(Date.now() * 0.01) * 0.02;
+    particles.scale.set(scalePulse, scalePulse, scalePulse);
+}
+// 🔥 Shrine light flicker
+if(currentTech === "shrine") {
+    redLight.intensity = 3 + Math.sin(Date.now() * 0.004) * 2;
+} else {
+    redLight.intensity = 4;
+}
+        composer.render();
+    }
+    
+
+    animate();
+
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        composer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+</body>
+</html>
